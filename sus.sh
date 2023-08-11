@@ -13,10 +13,6 @@ function usage(){
 
 cat << help
 
-    Usage: sus.sh [-i] SRA-ID [-l] line separated list of SRR-IDs [-o] outputDir
-    
-    Example: sus.sh -i SRA -o sample_fastq
-
     This script downloads sra files via aws, convert the files to fastqs and 
     compresses the fastq files. It allows for the submission of single SRA IDs 
     using the -i flag. However, a list of SRA IDs are also supported. For list,
@@ -25,6 +21,15 @@ cat << help
     experiences acceleration. However, it is important to note that pigz is 
     installed for that. Otherwise, single threded gzip is used. 
 
+    Usage: sus.sh [-i] SRA-ID [-l] line separated list of SRR-IDs [-o] outputDir
+    
+    Example: sus.sh -i SRA -o sample_fastq
+
+    -i <SRA ID> | SRA ID of file that is downloaded 
+    -l <SRA ID list> | Text file with SRA IDs
+    -t <threads> | Number if cores used for conversion and compression (default: 1) 
+    -o <output> | path to output directory (default: fastqs)
+    -h | shows this help
 
 help
 
@@ -40,13 +45,15 @@ output=fastqs
 threads=1
 
 # Argument parser
-while getopts "i:l:t:o:" opt; do
+while getopts "i:l:t:o:h" opt; do
     case "$opt" in
         i) id="$OPTARG" ;;
         l) idList="$OPTARG" ;;
         t) threads="$OPTARG" ;;
         o) output="$OPTARG" ;;
-        *) echo "bash sra_download.sh [-i] SRR-ID [-l] line separated list of SRR-IDs [-t] int [-o] outputDir" >&2
+        h) usage 
+            exit 1;;
+        *) usage
             exit 1;;
     esac
 done
