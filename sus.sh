@@ -47,6 +47,8 @@ PWD=$(pwd)
 
 # colors
 RED='\033[0;31m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
 ENDCOLOR='\033[0m'
 
 log() {
@@ -63,6 +65,12 @@ err() {
     dt=$(date +"%x %r");
     printf "\n    ${RED}[%s] [ERROR] %s${ENDCOLOR}\n" "$dt" "$msg";
 
+}
+
+warn() {
+    msg=$1
+    dt=$(date +"%x %r");
+    printf "\n    ${YELLOW}[%s] [WARNING] %s${ENDCOLOR}\n" "$dt" "$msg";
 }
 
 #default settings
@@ -116,6 +124,7 @@ collect_seq_protocol(){
     
     bashbone -c
     local sra_id=$1
+    
 
     seq_protocol="$(efetch -db sra -id "$sra_id" -format runinfo -mode xml | \
         grep '<LibraryLayout>' | sed -nE 's/^\s*<([^>]+>)(.+)<\/\1/\2/p')"
@@ -132,9 +141,14 @@ collect_seq_protocol_py(){
     
     local sra_id=$1
 
+
     seq_protocol="$(python3 $SCRIPT_HOME/src/getSeqStrat.py -id $sra_id)"
 
-    echo "$seq_protocol"
+    if [[ "$seq_protocol" == "Invalid Sra id" ]]; then
+        echo "invalid"
+    else
+        echo "$seq_protocol"
+    fi
 
 }
 
@@ -212,7 +226,13 @@ if [[ $idList ]]; then
     while IFS= read -r line; do
 
         seq_protocol=$(collect_seq_protocol_py "$line")
-        download_via_aws "$line" "$output" "$seq_protocol"
+
+
+        if [[ "$seq_protocol" == "invalid" ]]; then
+            warn "Invalid SRA ID (${id}) skip the requested file"
+        else
+            download_via_aws "$line" "$output" "$seq_protocol"
+        fi
     
     done < <(grep . "$idList")                                
 
@@ -221,6 +241,11 @@ fi
 if [[ $id ]]; then
 
     seq_protocol=$(collect_seq_protocol_py "$id")
-    download_via_aws "$id" "$output" "$seq_protocol"
+
+    if [[ "$seq_protocol" == "invalid" ]]; then
+        warn "Invalid SRA ID (${id}) skip the requested file"
+    else
+        download_via_aws "$id" "$output" "$seq_protocol"
+    fi
 
 fi

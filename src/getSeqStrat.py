@@ -1,5 +1,6 @@
 import bs4
 import requests
+import sys
 import re
 from bs4 import BeautifulSoup
 from requests.exceptions import InvalidURL
@@ -22,14 +23,19 @@ def getXML(sra_number) -> bs4.BeautifulSoup:
     try:
         response.raise_for_status()
     except requests.HTTPError as exception:
-        print(f'Mooooep something went wrong. HAHA!')
-        raise InvalidURL("Don't know what is happening, see you")
+        return None
 
     return BeautifulSoup(response.text, 'lxml')
 
 args=parser.parse_args()
 
-for element in getXML(args.id).find_all("library_layout"):
+xml = getXML(args.id)
+
+if xml is None:
+    print('Invalid Sra id')
+    sys.exit()
+
+for element in xml.find_all("library_layout"):
     if re.search('single', str(element)):
         print('single')
     elif re.search('paired', str(element)):
