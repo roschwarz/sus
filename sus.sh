@@ -3,7 +3,7 @@
 set -eo pipefail
 
 # This script downloads sra files via aws, convert the files to fastqs and 
-# compress it with pigz.
+# compress it with pigz or gzip.
 #
 # author: Robert Schwarz
 # email: schwarzrobert1988 at gmail.com
@@ -31,6 +31,11 @@ cat << help
     -o <output> | path to output directory (default: fastqs)
     -h | shows this help
 
+    Required tools:
+        - aws 
+        - fasterq-dump
+        - python3
+
 help
 
 
@@ -40,8 +45,29 @@ help
 SCRIPT_HOME=$(dirname "$(realpath "$0")")
 PWD=$(pwd)
 
-output=fastqs
+# colors
+RED='\033[0;31m'
+ENDCOLOR='\033[0m'
 
+log() {
+
+    msg=$1
+    dt=$(date +"%x %r");
+    printf "[%s] [LOG] %s\n" "$dt" "$msg";
+
+}
+
+err() {
+
+    msg=$1
+    dt=$(date +"%x %r");
+    printf "\n    ${RED}[%s] [ERROR] %s${ENDCOLOR}\n" "$dt" "$msg";
+
+}
+
+#default settings
+
+output=fastqs
 threads=1
 
 # Argument parser
@@ -60,19 +86,21 @@ done
 
 if [ -z "$id" ] && [ -z "$idList" ]; then
 
-    printf "\n    ERROR: Missing required input\n\n"
+    err "Missing required input"
     usage
     exit 1
 
 fi
 
 if ! [ -x "$(command -v fasterq-dump)" ]; then
-    printf "\n    ERROR: Fasterq dump is not installed. Make sure to add it to your PATH variable\n\n"
+    err "fasterq-dump is not installed. Make sure to add it to your PATH variable"
+    usage
     exit 1
 fi
 
 if ! [ -x "$(command -v aws)" ]; then
-    printf "\n    ERROR: aws is not installed. Make sure to add it to your PATH variable\n\n"
+    err "aws is not installed. Make sure to add it to your PATH variable"
+    usage
     exit 1
 fi
 
@@ -117,7 +145,7 @@ compression(){
     local sra_id=$1
     local seq_protocol=$2
 
-    echo Compression of "$sra_id" 
+    log Compression of "$sra_id" 
 
     if [[ $seq_protocol == "paired" ]]; then
         sra_ids=("${sra_id}"_1.fastq "${sra_id}"_2.fastq)
@@ -126,7 +154,7 @@ compression(){
     fi
     
     if ! [ -x "$(command -v pigz)" ]; then
-        echo pigz is not installed, using gzip instead
+        echo WARNING pigz is not installed, using gzip instead
         zip=(gzip "${sra_ids[@]}")
     else
         zip=("pigz" "-p" "$threads" "${sra_ids[@]}")
@@ -143,14 +171,14 @@ compression(){
 # and zipped with pigz
 #
 # TO-DO:
-# - possibility to set fasterq-dump?
+# - may split the function into download, conversion, compression
 download_via_aws(){
 
     local sra_id=$1
     local fastq_dir=$2
     local seq_protocol=$3
     
-    echo "Download $sra_id"
+    log "Download $sra_id"
 
     aws s3 sync s3://sra-pub-run-odp/sra/"$sra_id" "$fastq_dir" --no-sign-request
     
@@ -161,7 +189,7 @@ download_via_aws(){
         toFastq+=("--split-files")
     fi
     
-    echo "${toFastq[@]}"
+    log "${toFastq[@]}"
 
     # run fasterq-dump
     "${toFastq[@]}"
@@ -169,7 +197,7 @@ download_via_aws(){
     # cd - jumps back to the orgin start point
     cd "$fastq_dir" && { pwd; compression "$sra_id" "$seq_protocol"; rm "$sra_id"; cd -; }
 
-    echo "Download, conversion, and compression done for $sra_id"
+    log "Download, conversion, and compression done for $sra_id"
     
 }
 
@@ -183,8 +211,6 @@ if [[ $idList ]]; then
 
     while IFS= read -r line; do
 
-        echo $line
-    
         seq_protocol=$(collect_seq_protocol_py "$line")
         download_via_aws "$line" "$output" "$seq_protocol"
     
@@ -194,7 +220,6 @@ fi
 
 if [[ $id ]]; then
 
-    echo $id
     seq_protocol=$(collect_seq_protocol_py "$id")
     download_via_aws "$id" "$output" "$seq_protocol"
 
